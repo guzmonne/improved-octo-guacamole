@@ -1,7 +1,9 @@
 use axum::{routing, Router};
-use std::net::SocketAddr;
+use sqlx::SqlitePool;
+use std::{net::SocketAddr, sync::Arc};
 
 use canoe::controller::FundController;
+use canoe::db::init;
 
 #[tokio::main]
 async fn main() -> color_eyre::eyre::Result<()> {
@@ -11,19 +13,28 @@ async fn main() -> color_eyre::eyre::Result<()> {
     // Initialize tracing
     tracing_subscriber::fmt::init();
 
+    // Initialize database
+    let db = init().await?;
+
     // Run main function
-    run().await?;
+    run(db).await?;
 
     Ok(())
 }
 
-async fn run() -> color_eyre::eyre::Result<()> {
+async fn run(db: SqlitePool) -> color_eyre::eyre::Result<()> {
     // Controller
     let app = Router::new()
-        // `GET /funds`: returns a list of funds filtered by `name`, `fund_manager`, or `year`.
+        // `GET /funds`: returns a list of funds filtered by `name`, `manager`, or `year`.
         .route("/funds", routing::get(FundController::list))
+        // `POST /funds`: creates a new fund.
+        .route("/funds", routing::post(FundController::create))
+        // `GET /funds/:id`: returns a fund by id.
+        .route("/funds/:id", routing::get(FundController::read))
         // `PUT /funds/:id`: updates all attributes of a fund.
-        .route("/funds/:id", routing::put(FundController::update));
+        .route("/funds/:id", routing::put(FundController::update))
+        // Configure the app state
+        .with_state(Arc::new(canoe::AppState { db }));
 
     // Run with hyper
     let addr = SocketAddr::from(([127, 0, 0, 1], 2908));
