@@ -17,6 +17,16 @@ env $(xargs <".env") ./bin/canoe
 
 ## Getting Started
 
+The recommended way to run the service in development mode is by using the `cargo watch` command,
+configured to look for changes inside the `crates/` folder. This will make it so that each new
+change made to any of the crates, would restart the server.
+
+```bash
+env $(xargs <./dev.env) cargo watch -q -c -w crates/ -x "run --bin canoe"
+```
+
+## Builds
+
 ### Dev Build
 
 All the application configuration is provided through environment variables. To start the app in
