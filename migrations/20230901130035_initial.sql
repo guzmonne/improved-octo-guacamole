@@ -25,4 +25,3 @@ CREATE TABLE investments (
     FOREIGN KEY(fund_id) REFERENCES funds(id),
     FOREIGN KEY(company_id) REFERENCES companies(id)
 );
-

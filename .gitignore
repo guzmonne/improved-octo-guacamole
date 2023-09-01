@@ -12,3 +12,6 @@ Cargo.lock
 # Don't store archived files
 /archive/
 
+# Don't store database files
+/db/
+
