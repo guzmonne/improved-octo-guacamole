@@ -1,0 +1,25 @@
+[package]
+name = "canoe"
+version = "0.0.0"
+homepage = "https://github.com/guzmonne/canoe"
+description = "A simple web-service"
+autobins = false
+
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "canoe"
+path = "src/main.rs"
+
+[dependencies]
+tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+clap = { version = "4.3.10", features = ["derive", "string"] }
+color-eyre = "0.6.2"
+serde = { version = "1.0.188", features = ["derive"] }
+serde_json = "1.0.105"
+tokio = {version = "1.32.0", features = ["full"] }
+tracing = "0.1.37"
+axum = "0.6.20"
+
