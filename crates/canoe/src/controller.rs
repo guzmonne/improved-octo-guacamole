@@ -1,20 +1,14 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     Json,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::model::{Fund, FundRepository, ListFundQuery, PartialFund};
+use crate::model::{FilterFundQuery, Fund, FundRepository, PartialFund};
 use crate::AppState;
-
-#[derive(Serialize, Deserialize)]
-pub struct UpdateFund {
-    id: i64,
-    fund: PartialFund,
-}
 
 #[derive(Serialize, Deserialize)]
 pub struct CreateFund {
@@ -23,26 +17,43 @@ pub struct CreateFund {
     start_year: u16,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct ListFundQuery {
+    filter: Option<String>,
+    value: Option<String>,
+}
+
 pub struct FundController;
 
 impl FundController {
     /// Handle GET /funds
-    pub async fn list(State(state): State<Arc<AppState>>) -> (StatusCode, Json<Vec<Fund>>) {
-        (
-            StatusCode::OK,
-            Json(
-                match FundRepository::new(&state.db)
-                    .list(ListFundQuery::None)
-                    .await
-                {
-                    Ok(funds) => funds,
-                    Err(e) => {
-                        tracing::error!("Failed to list funds with error: {}", e);
-                        vec![]
-                    }
-                },
-            ),
-        )
+    pub async fn list(
+        State(state): State<Arc<AppState>>,
+        Query(query): Query<ListFundQuery>,
+    ) -> (StatusCode, Json<Vec<Fund>>) {
+        let filter = if query.filter.is_some() && query.value.is_some() {
+            match query.filter {
+                Some(ref filter) if filter == "name" => {
+                    FilterFundQuery::Name(query.value.clone().unwrap())
+                }
+                Some(ref filter) if filter == "manager" => {
+                    FilterFundQuery::Manager(query.value.clone().unwrap())
+                }
+                Some(ref filter) if filter == "start_year" => {
+                    FilterFundQuery::StartYear(query.value.clone().unwrap().parse().unwrap())
+                }
+                _ => FilterFundQuery::None,
+            }
+        } else {
+            FilterFundQuery::None
+        };
+        match FundRepository::new(&state.db).list(filter).await {
+            Ok(funds) => (StatusCode::OK, Json(funds)),
+            Err(e) => {
+                tracing::error!("Failed to list funds with error: {}", e);
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(vec![]))
+            }
+        }
     }
 
     /// Handle POST /funds
@@ -79,10 +90,11 @@ impl FundController {
     /// Handle PUT /funds/:id
     pub async fn update(
         State(state): State<Arc<AppState>>,
-        Json(body): Json<UpdateFund>,
+        Path(id): Path<i64>,
+        Json(partial_fund): Json<PartialFund>,
     ) -> (StatusCode, Json<Option<Fund>>) {
         match FundRepository::new(&state.db)
-            .update(body.id, body.fund)
+            .update(id, partial_fund)
             .await
         {
             Ok(fund) => (StatusCode::OK, Json(Some(fund))),

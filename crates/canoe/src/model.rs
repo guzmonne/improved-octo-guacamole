@@ -12,9 +12,9 @@ pub struct PartialFund {
 
 /// Enumerates the possible queries for listing funds.
 #[derive(Serialize, Deserialize, Debug)]
-pub enum ListFundQuery {
+pub enum FilterFundQuery {
     Name(String),
-    FundManager(String),
+    Manager(String),
     StartYear(u16),
     None,
 }
@@ -87,13 +87,27 @@ impl<'a> FundRepository<'a> {
     }
 
     /// List funds with a query.
-    pub async fn list(&self, query: ListFundQuery) -> Result<Vec<Fund>> {
+    pub async fn list(&self, query: FilterFundQuery) -> Result<Vec<Fund>> {
         tracing::info!("Listing funds with query: {:?}", query);
         // let result = sqlx::query("SELECT * FROM funds").fetch_all(db).await?;
-        match sqlx::query_as::<_, Fund>("SELECT id, name, manager, start_year FROM funds")
-            .fetch_all(self.db)
-            .await
-        {
+        let query = match query {
+            FilterFundQuery::Name(value) => sqlx::query_as::<_, Fund>(
+                "SELECT id, name, manager, start_year FROM funds WHERE name = ?",
+            )
+            .bind(value),
+            FilterFundQuery::Manager(value) => sqlx::query_as::<_, Fund>(
+                "SELECT id, name, manager, start_year FROM funds WHERE manager = ?",
+            )
+            .bind(value),
+            FilterFundQuery::StartYear(value) => sqlx::query_as::<_, Fund>(
+                "SELECT id, name, manager, start_year FROM funds WHERE start_year = ?",
+            )
+            .bind(value),
+            FilterFundQuery::None => {
+                sqlx::query_as::<_, Fund>("SELECT id, name, manager, start_year FROM funds")
+            }
+        };
+        match query.fetch_all(self.db).await {
             Ok(funds) => Ok(funds),
             Err(e) => {
                 tracing::error!("Failed to list funds: {}", e);
@@ -141,7 +155,7 @@ RETURNING id, name, manager, start_year
         tracing::info!("Storing fund: {:?}", fund);
         match sqlx::query(
             r#"
-INSERT INTO funds (name, manager, start_year) VALUES (?, ?, ?)")
+INSERT INTO funds (name, manager, start_year) VALUES (?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET name = excluded.name, manager = excluded.manager, start_year = excluded.year
 "#,
         )

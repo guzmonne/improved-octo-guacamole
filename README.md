@@ -43,7 +43,11 @@ URL="http://localhost:2908"
 Get the list of `funds`. You can filter by `name`, `manager`, or `year`.
 
 ```bash
+# Get all funds
 curl "$URL/funds" \
+    -H 'Content-Type: application/json'
+# Get funds managed by company 1
+curl "$URL/funds?filter=manager&value=1" \
     -H 'Content-Type: application/json'
 ```
 
