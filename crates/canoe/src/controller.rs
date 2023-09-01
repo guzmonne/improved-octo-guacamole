@@ -20,7 +20,7 @@ pub struct UpdateFund {
 pub struct CreateFund {
     name: String,
     manager: i64,
-    year: u16,
+    start_year: u16,
 }
 
 pub struct FundController;
@@ -51,7 +51,7 @@ impl FundController {
         Json(body): Json<CreateFund>,
     ) -> (StatusCode, Json<Option<Fund>>) {
         match FundRepository::new(&state.db)
-            .create(body.name, body.manager, body.year)
+            .create(body.name, body.manager, body.start_year)
             .await
         {
             Ok(fund) => (StatusCode::CREATED, Json(Some(fund))),

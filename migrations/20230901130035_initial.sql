@@ -6,7 +6,7 @@ CREATE TABLE companies (
 CREATE TABLE funds (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT UNIQUE NOT NULL,
-    start INTEGER NOT NULL,
+    start_year INTEGER NOT NULL,
     manager INTEGER NOT NULL,
     FOREIGN KEY(manager) REFERENCES companies(id)
 );

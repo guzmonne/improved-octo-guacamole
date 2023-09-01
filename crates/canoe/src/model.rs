@@ -7,7 +7,7 @@ use sqlx::{FromRow, SqlitePool};
 pub struct PartialFund {
     name: Option<String>,
     fund_manager: Option<i64>,
-    year: Option<u16>,
+    start_year: Option<u16>,
 }
 
 /// Enumerates the possible queries for listing funds.
@@ -15,7 +15,7 @@ pub struct PartialFund {
 pub enum ListFundQuery {
     Name(String),
     FundManager(String),
-    Year(u16),
+    StartYear(u16),
     None,
 }
 
@@ -25,17 +25,17 @@ pub struct Fund {
     id: i64,
     name: String,
     manager: i64,
-    year: u16,
+    start_year: u16,
 }
 
 impl Fund {
     /// Creates a new fund
-    pub fn new(id: i64, name: String, manager: i64, year: u16) -> Self {
+    pub fn new(id: i64, name: String, manager: i64, start_year: u16) -> Self {
         Self {
             id,
             name,
             manager,
-            year,
+            start_year,
         }
     }
 
@@ -49,8 +49,8 @@ impl Fund {
         if let Some(fund_manager) = fund.fund_manager {
             self.manager = fund_manager;
         }
-        if let Some(year) = fund.year {
-            self.year = year;
+        if let Some(start_year) = fund.start_year {
+            self.start_year = start_year;
         }
     }
 }
@@ -67,10 +67,12 @@ impl<'a> FundRepository<'a> {
     /// Get a fund by id.
     pub async fn get(&self, id: i64) -> Result<Fund> {
         tracing::info!("Getting fund with id: {}", id);
-        match sqlx::query_as::<_, Fund>("SELECT id, name, manager, year FROM funds WHERE id = ?")
-            .bind(id)
-            .fetch_optional(self.db)
-            .await
+        match sqlx::query_as::<_, Fund>(
+            "SELECT id, name, manager, start_year FROM funds WHERE id = ?",
+        )
+        .bind(id)
+        .fetch_optional(self.db)
+        .await
         {
             Ok(Some(fund)) => Ok(fund),
             Ok(None) => Err(color_eyre::eyre::eyre!("Fund not found")),
@@ -88,7 +90,7 @@ impl<'a> FundRepository<'a> {
     pub async fn list(&self, query: ListFundQuery) -> Result<Vec<Fund>> {
         tracing::info!("Listing funds with query: {:?}", query);
         // let result = sqlx::query("SELECT * FROM funds").fetch_all(db).await?;
-        match sqlx::query_as::<_, Fund>("SELECT id, name, manager, year FROM funds")
+        match sqlx::query_as::<_, Fund>("SELECT id, name, manager, start_year FROM funds")
             .fetch_all(self.db)
             .await
         {
@@ -101,17 +103,17 @@ impl<'a> FundRepository<'a> {
     }
 
     /// Creates a new fund.
-    pub async fn create(&self, name: String, manager: i64, year: u16) -> Result<Fund> {
-        tracing::info!("Creating fund: {} {} {}", name, manager, year);
+    pub async fn create(&self, name: String, manager: i64, start_year: u16) -> Result<Fund> {
+        tracing::info!("Creating fund: {} {} {}", name, manager, start_year);
         match sqlx::query_as::<_, Fund>(
             r#"
-INSERT INTO funds (name, manager, year) VALUES (?, ?, ?)
-RETURNING id, name, manager, year
+INSERT INTO funds (name, manager, start_year) VALUES (?, ?, ?)
+RETURNING id, name, manager, start_year
 "#,
         )
         .bind(name.as_str())
         .bind(manager)
-        .bind(year)
+        .bind(start_year)
         .fetch_one(self.db)
         .await
         {
@@ -139,13 +141,13 @@ RETURNING id, name, manager, year
         tracing::info!("Storing fund: {:?}", fund);
         match sqlx::query(
             r#"
-INSERT INTO funds (name, manager, year) VALUES (?, ?, ?)")
-ON CONFLICT(id) DO UPDATE SET name = excluded.name, manager = excluded.manager, year = excluded.year
+INSERT INTO funds (name, manager, start_year) VALUES (?, ?, ?)")
+ON CONFLICT(id) DO UPDATE SET name = excluded.name, manager = excluded.manager, start_year = excluded.year
 "#,
         )
         .bind(fund.name.as_str())
         .bind(fund.manager)
-        .bind(fund.year)
+        .bind(fund.start_year)
         .execute(self.db)
         .await
         {
