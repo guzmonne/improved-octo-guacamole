@@ -1,6 +1,7 @@
-use axum::{http::StatusCode, routing, Json, Router};
-use serde::{Deserialize, Serialize};
+use axum::{routing, Router};
 use std::net::SocketAddr;
+
+use canoe::controller::FundController;
 
 #[tokio::main]
 async fn main() -> color_eyre::eyre::Result<()> {
@@ -33,82 +34,5 @@ async fn run() -> color_eyre::eyre::Result<()> {
     {
         Ok(_) => Ok(()),
         Err(e) => Err(color_eyre::Report::new(e)),
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-struct Fund {
-    id: u64,
-    name: String,
-    fund_manager: u64,
-    year: u16,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-enum ListFundQuery {
-    Name(String),
-    FundManager(String),
-    Year(u16),
-    None,
-}
-
-impl Fund {
-    pub async fn get(id: u64) -> Option<Self> {
-        tracing::info!("Getting fund with id: {}", id);
-        Some(Self {
-            id,
-            name: "Fund 1".to_string(),
-            fund_manager: 1,
-            year: 2020,
-        })
-    }
-
-    pub async fn list(query: ListFundQuery) -> Vec<Self> {
-        tracing::info!("Listing funds with query: {:?}", query);
-        vec![Self {
-            id: 1,
-            name: "Fund 1".to_string(),
-            fund_manager: 1,
-            year: 2020,
-        }]
-    }
-
-    pub async fn update(&mut self, fund: PartialFund) {
-        if let Some(name) = fund.name {
-            self.name = name;
-        }
-        if let Some(fund_manager) = fund.fund_manager {
-            self.fund_manager = fund_manager;
-        }
-        if let Some(year) = fund.year {
-            self.year = year;
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-struct PartialFund {
-    name: Option<String>,
-    fund_manager: Option<u64>,
-    year: Option<u16>,
-}
-
-#[derive(Serialize, Deserialize)]
-struct UpdateFund {
-    id: u64,
-    fund: PartialFund,
-}
-
-struct FundController;
-
-impl FundController {
-    pub async fn list() -> (StatusCode, Json<Vec<Fund>>) {
-        (StatusCode::OK, Json(Fund::list(ListFundQuery::None).await))
-    }
-
-    pub async fn update(Json(body): Json<UpdateFund>) -> (StatusCode, Json<Fund>) {
-        let mut fund = Fund::get(body.id).await.unwrap();
-        fund.update(body.fund).await;
-        (StatusCode::OK, Json(fund))
     }
 }

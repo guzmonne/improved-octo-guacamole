@@ -9,6 +9,10 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lib]
+name = "canoe"
+path = "src/lib.rs"
+
 [[bin]]
 name = "canoe"
 path = "src/main.rs"
