@@ -1,10 +1,10 @@
 use axum::{routing, Router};
 use sqlx::SqlitePool;
 use std::{net::SocketAddr, sync::Arc};
+use tokio::sync::Mutex;
 use tower_http::{classify::StatusInRangeAsFailures, trace::TraceLayer};
 
 use canoe::controller::FundController;
-use canoe::db::init;
 
 #[tokio::main]
 async fn main() -> color_eyre::eyre::Result<()> {
@@ -15,22 +15,30 @@ async fn main() -> color_eyre::eyre::Result<()> {
     tracing_subscriber::fmt::init();
 
     // Initialize database
-    let db = init().await?;
+    let db = canoe::db::init().await?;
 
-    // Run main function
+    // Initialize the tasks queue
+    let tasks = canoe::events::init().await?;
+
+    // Get host and port from environment variables
     let mut host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
     let port = std::env::var("PORT").unwrap_or("2908".to_string());
-
     if host == "localhost" {
         host = "127.0.0.1".to_string();
     }
+    let addr: SocketAddr = format!("{}:{}", host, port).parse()?;
 
-    run(db, &host, &port).await?;
+    // Run main function
+    run(db, tasks, addr).await?;
 
     Ok(())
 }
 
-async fn run(db: SqlitePool, host: &str, port: &str) -> color_eyre::eyre::Result<()> {
+async fn run(
+    db: SqlitePool,
+    tasks: canoe::events::Tasks,
+    addr: SocketAddr,
+) -> color_eyre::eyre::Result<()> {
     // Controller
     let app = Router::new()
         // `GET /funds`: returns a list of funds filtered by `name`, `manager`, or `year`.
@@ -42,13 +50,12 @@ async fn run(db: SqlitePool, host: &str, port: &str) -> color_eyre::eyre::Result
         // `PUT /funds/:id`: updates all attributes of a fund.
         .route("/funds/:id", routing::put(FundController::update))
         // Configure the app state
-        .with_state(Arc::new(canoe::AppState { db }))
+        .with_state(Arc::new(Mutex::new(canoe::AppState { db, tasks })))
         // Configure HTTP tracing
         .layer(TraceLayer::new(
             StatusInRangeAsFailures::new(400..=599).into_make_classifier(),
         ));
     // Run with hyper
-    let addr: SocketAddr = format!("{}:{}", host, port).parse()?;
     tracing::debug!("listening on {}", addr);
     match axum::Server::bind(&addr)
         .serve(app.into_make_service())

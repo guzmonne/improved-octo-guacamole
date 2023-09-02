@@ -22,10 +22,10 @@ pub enum FilterFundQuery {
 /// Represents a fund.
 #[derive(Serialize, Deserialize, Clone, FromRow, Debug)]
 pub struct Fund {
-    id: i64,
-    name: String,
-    manager: i64,
-    start_year: u16,
+    pub id: i64,
+    pub name: String,
+    pub manager: i64,
+    pub start_year: u16,
 }
 
 impl Fund {
