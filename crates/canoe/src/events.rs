@@ -47,13 +47,22 @@ impl Tasks {
             )),
         }
     }
+
+    /// Returns the next event in the queue.
+    pub async fn remove(&mut self) -> Result<Event> {
+        let mut queue = self.queue.lock().await;
+        match queue.remove() {
+            Ok(event) => Ok(event),
+            Err(_) => Err(color_eyre::eyre::eyre!("Queue is empty")),
+        }
+    }
 }
 
 pub async fn init() -> Result<Tasks> {
     tracing::info!("Starting event loop");
     let tasks = Tasks::new();
 
-    let queue = tasks.queue.clone();
+    let mut clone = tasks.clone();
     tokio::spawn(async move {
         tracing::info!("Connecting to database");
         let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
@@ -62,26 +71,24 @@ pub async fn init() -> Result<Tasks> {
             .expect("Failed to connect to db");
         let interval = Duration::from_millis(100);
         loop {
-            {
-                let mut queue = queue.lock().await;
-                if let Ok(event) = queue.remove() {
-                    match event.name.as_str() {
-                        "fund_created" => {
-                            tracing::info!("Processing fund_created");
-                            check_duplicates(&db, &event, &mut queue)
-                                .await
-                                .expect("Failed to check duplicates");
-                        }
-                        "fund_duplicate" => {
-                            tracing::info!("Processing fund_duplicate");
-                        }
-                        _ => {
-                            tracing::info!("Unknown event: {}", event.name);
-                        }
+            if let Ok(event) = clone.remove().await {
+                tracing::info!("Event: {:?}", event);
+                match event.name.as_str() {
+                    "fund_created" => {
+                        tracing::info!("Processing fund_created");
+                        check_duplicates(&db, &event, &mut clone)
+                            .await
+                            .expect("Failed to check duplicates");
                     }
-                    tracing::info!("Event: {:?}", event);
+                    "fund_duplicate" => {
+                        tracing::info!("Processing fund_duplicate");
+                    }
+                    _ => {
+                        tracing::info!("Unknown event: {}", event.name);
+                    }
                 }
             }
+
             // Sleep for interval seconds
             tokio::time::sleep(interval).await;
         }
@@ -101,11 +108,7 @@ struct DuplicateCount {
 }
 
 /// Checks if the fund has already been assigned to a company with the same name or alias.
-async fn check_duplicates(
-    db: &sqlx::SqlitePool,
-    event: &Event,
-    queue: &mut Queue<Event>,
-) -> Result<()> {
+async fn check_duplicates(db: &sqlx::SqlitePool, event: &Event, tasks: &mut Tasks) -> Result<()> {
     let payload: FundCreatedPayload = serde_json::from_str(&event.payload)?;
     let fund = FundRepository::new(db).get(payload.id).await?;
 
@@ -140,12 +143,10 @@ SELECT count(*) as count FROM aliases WHERE alias = ? AND fund_id IN (SELECT fun
 
     if duplicate_fund_name.count > 0 || duplicate_alias.count > 0 {
         tracing::info!("Duplicate found for fund: {}", &fund.name);
-        queue
-            .add(Event::new(
-                "fund_duplicate".to_string(),
-                serde_json::to_string(&fund)?,
-            ))
-            .expect("Failed to add event to queue");
+
+        tasks
+            .emit("fund_duplicate".to_string(), serde_json::to_string(&fund)?)
+            .await?;
     }
 
     Ok(())
