@@ -126,3 +126,29 @@ chmod +x target/release/canoe
 # Run the built binary with the `production` configuration.
 env $(xargs <.env) ./target/release/canoe
 ```
+
+## Additional comments about the task
+
+I took the opportunity to practise my knowledge of `rust` and to try some tools that I've been
+meaning to play with for a while, mainly:
+
+- `axum` is a web framework that is developed by the same people who invented the `tokio` runtime,
+    which is an amazing tool to develop concurrent applications. The whole `tokio` ecosystem is
+    great, and the API exposed by `axum` is very good.
+- `sqlx` is a library that allows you to interact with multiple SQL databases by writing SQL
+    directly in your code, while avoiding SQL injections, and supporting the natural type system of the
+    language. It also has a very robust set of tools to handle migrations, among other stuff.
+
+I found the experience really gratifying and I would consider this a very good stack from which to
+build an app.
+
+Regarding the database, the `schema` can be found in the migrations directory. I liked the way
+`sqlx` makes you interact with the SQL code without requiring an ORM. I feel like I'm much more in
+control of the queries I perform. For example, being able to use the `WITH` clause greatly
+simplifies the creation of the `check_duplicates` function, which could also be improved by using an
+`Exists` query instead of a `SELECT Count(*)`.
+
+
+
+
+The final implementation has support for

@@ -112,36 +112,26 @@ async fn check_duplicates(db: &sqlx::SqlitePool, event: &Event, tasks: &mut Task
     let payload: FundCreatedPayload = serde_json::from_str(&event.payload)?;
     let fund = FundRepository::new(db).get(payload.id).await?;
 
-    // SELECT count(*) FROM funds WHERE name = "FooBarBax" AND manager = 1 AND id != 50;
-    let duplicate_fund_name: DuplicateCount = sqlx::query_as::<_, DuplicateCount>(
+    let duplicate_count: DuplicateCount = sqlx::query_as::<_, DuplicateCount>(
         r#"
-SELECT count(*) as count FROM funds WHERE name = ? AND manager = ? AND id != ?
+WITH company_funds AS (
+    SELECT fund_id FROM funds WHERE manager = ?
+), aliases_count AS (
+    SELECT count(*) as count FROM aliases WHERE alias = ? AND fund_id IN (SELECT fund_id FROM company_funds)
+), funds_count AS (
+    SELECT count(*) as count FROM funds WHERE name = ? AND manager = ? AND id != ?
+) SELECT aliases_count.count + funds_count.count as count FROM aliases_count, funds_count
 "#,
     )
-    .bind(fund.name.as_str())
+    .bind(fund.manager)
+    .bind(fund.name.to_string())
+    .bind(fund.name.to_string())
     .bind(fund.manager)
     .bind(fund.id)
     .fetch_one(db)
     .await?;
 
-    // WITH company_funds AS (
-    //   SELECT fund_id FROM funds WHERE manager = 1
-    // )
-    // SELECT count(*) FROM aliases WHERE alias = "FooBarBax" AND fund_id IN (SELECT fund_id FROM company_funds)
-    let duplicate_alias: DuplicateCount = sqlx::query_as::<_, DuplicateCount>(
-        r#"
-WITH company_funds AS (
-    SELECT fund_id FROM funds WHERE manager = ?
-)
-SELECT count(*) as count FROM aliases WHERE alias = ? AND fund_id IN (SELECT fund_id FROM company_funds)
-"#,
-    )
-    .bind(fund.manager)
-    .bind(fund.name.to_string())
-    .fetch_one(db)
-    .await?;
-
-    if duplicate_fund_name.count > 0 || duplicate_alias.count > 0 {
+    if duplicate_count.count > 0 {
         tracing::info!("Duplicate found for fund: {}", &fund.name);
 
         tasks

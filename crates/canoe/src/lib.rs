@@ -3,6 +3,8 @@ use std::sync::Arc;
 use sqlx::SqlitePool;
 use tokio::sync::Mutex;
 
+pub mod app;
+pub mod config;
 pub mod controller;
 pub mod db;
 pub mod events;
