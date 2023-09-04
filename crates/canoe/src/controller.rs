@@ -1,12 +1,9 @@
-use std::sync::Arc;
-
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     Json,
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
 
 use crate::model::{FilterFundQuery, Fund, FundRepository, PartialFund};
 use crate::AppState;
@@ -29,7 +26,7 @@ pub struct FundController;
 impl FundController {
     /// Handle GET /funds
     pub async fn list(
-        State(state): State<Arc<Mutex<AppState>>>,
+        State(state): State<AppState>,
         Query(query): Query<ListFundQuery>,
     ) -> (StatusCode, Json<Vec<Fund>>) {
         let filter = if query.filter.is_some() && query.value.is_some() {
@@ -48,10 +45,7 @@ impl FundController {
         } else {
             FilterFundQuery::None
         };
-        match FundRepository::new(&state.lock().await.db)
-            .list(filter)
-            .await
-        {
+        match FundRepository::new(&state.db).list(filter).await {
             Ok(funds) => (StatusCode::OK, Json(funds)),
             Err(e) => {
                 tracing::error!("Failed to list funds with error: {}", e);
@@ -62,17 +56,16 @@ impl FundController {
 
     /// Handle POST /funds
     pub async fn create(
-        State(state): State<Arc<Mutex<AppState>>>,
+        State(state): State<AppState>,
         Json(body): Json<CreateFund>,
     ) -> (StatusCode, Json<Option<Fund>>) {
-        let mut state = state.lock().await;
+        let mut tasks = state.tasks.lock().await;
         match FundRepository::new(&state.db)
             .create(body.name, body.manager, body.start_year)
             .await
         {
             Ok(fund) => {
-                state
-                    .tasks
+                tasks
                     .emit(
                         "fund_created".to_string(),
                         serde_json::json!({"id": fund.id}).to_string(),
@@ -90,10 +83,10 @@ impl FundController {
 
     /// Handle GET /funds/:id
     pub async fn read(
-        State(state): State<Arc<Mutex<AppState>>>,
+        State(state): State<AppState>,
         Path(id): Path<i64>,
     ) -> (StatusCode, Json<Option<Fund>>) {
-        match FundRepository::new(&state.lock().await.db).get(id).await {
+        match FundRepository::new(&state.db).get(id).await {
             Ok(fund) => (StatusCode::OK, Json(Some(fund))),
             Err(e) => {
                 tracing::error!("Failed to get fund with error: {}", e);
@@ -104,11 +97,12 @@ impl FundController {
 
     /// Handle PUT /funds/:id
     pub async fn update(
-        State(state): State<Arc<Mutex<AppState>>>,
+        State(state): State<AppState>,
+
         Path(id): Path<i64>,
         Json(partial_fund): Json<PartialFund>,
     ) -> (StatusCode, Json<Option<Fund>>) {
-        match FundRepository::new(&state.lock().await.db)
+        match FundRepository::new(&state.db)
             .update(id, partial_fund)
             .await
         {

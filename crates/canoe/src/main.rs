@@ -1,7 +1,6 @@
 use axum::{routing, Router};
 use sqlx::SqlitePool;
-use std::{net::SocketAddr, sync::Arc};
-use tokio::sync::Mutex;
+use std::net::SocketAddr;
 use tower_http::{classify::StatusInRangeAsFailures, trace::TraceLayer};
 
 use canoe::controller::FundController;
@@ -50,7 +49,7 @@ async fn run(
         // `PUT /funds/:id`: updates all attributes of a fund.
         .route("/funds/:id", routing::put(FundController::update))
         // Configure the app state
-        .with_state(Arc::new(Mutex::new(canoe::AppState { db, tasks })))
+        .with_state(canoe::AppState::new(db, tasks))
         // Configure HTTP tracing
         .layer(TraceLayer::new(
             StatusInRangeAsFailures::new(400..=599).into_make_classifier(),
